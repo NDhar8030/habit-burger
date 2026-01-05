@@ -14,8 +14,13 @@ export function TimelineHeader({ dates }: TimelineHeaderProps) {
 
   return (
     <div className="flex items-end gap-2 mb-2 sticky top-0 bg-background z-10 pb-2">
+      {/* Streak header */}
+      <div className="w-12 flex-shrink-0 flex justify-end pr-2">
+        <span className="text-[10px] text-muted-foreground font-medium uppercase">Streak</span>
+      </div>
+      
       {/* Spacer for habit names */}
-      <div className="w-48 flex-shrink-0" />
+      <div className="w-40 flex-shrink-0" />
       
       {/* Date headers */}
       <div className="flex items-end gap-[var(--habit-cell-gap)]">
@@ -29,8 +34,7 @@ export function TimelineHeader({ dates }: TimelineHeaderProps) {
               key={date.toISOString()}
               className={cn(
                 "flex flex-col items-center justify-end",
-                "habit-cell",
-                today && 'today-column'
+                "habit-cell"
               )}
             >
               {showMonth && (
@@ -50,11 +54,6 @@ export function TimelineHeader({ dates }: TimelineHeaderProps) {
             </div>
           );
         })}
-      </div>
-
-      {/* Streak header spacer */}
-      <div className="w-20 flex-shrink-0 pl-3 border-l border-border/50">
-        <span className="text-xs text-muted-foreground font-medium">Streak</span>
       </div>
     </div>
   );

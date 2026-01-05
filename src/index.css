@@ -155,12 +155,6 @@
   .today-column {
     @apply relative;
   }
-
-  .today-column::before {
-    content: '';
-    @apply absolute inset-0 -mx-[1px] border-x-2 border-[hsl(var(--today-indicator))] pointer-events-none;
-    z-index: 10;
-  }
 }
 
 /* Custom animations */

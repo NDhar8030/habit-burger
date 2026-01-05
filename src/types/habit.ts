@@ -7,6 +7,7 @@ export interface Habit {
   skip_weekends: boolean;
   is_reverse: boolean;
   reminder_time: string | null;
+  archived: boolean;
   created_at: string;
   updated_at: string;
 }

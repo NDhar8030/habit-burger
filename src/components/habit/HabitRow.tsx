@@ -1,7 +1,7 @@
 import { Habit, CompletionStatus } from '@/types/habit';
 import { CompletionCell } from './CompletionCell';
 import { format, isToday, isFuture } from 'date-fns';
-import { MoreHorizontal, Flame, Trash2, Pencil } from 'lucide-react';
+import { MoreHorizontal, Trash2, Pencil, Archive } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -20,6 +20,7 @@ interface HabitRowProps {
   opacity: number;
   onEdit: () => void;
   onDelete: () => void;
+  onArchive: () => void;
 }
 
 export function HabitRow({
@@ -31,17 +32,28 @@ export function HabitRow({
   opacity,
   onEdit,
   onDelete,
+  onArchive,
 }: HabitRowProps) {
   return (
     <div className="flex items-center gap-2 group min-h-[var(--habit-row-height)]">
-      {/* Habit name */}
-      <div className="w-48 flex-shrink-0 flex items-center justify-between pr-2">
+      {/* Streak count */}
+      <div className="w-12 flex-shrink-0 flex items-center justify-end pr-2">
+        {streak.current > 0 ? (
+          <span className="text-sm font-semibold text-muted-foreground">{streak.current}</span>
+        ) : (
+          <span className="text-sm text-muted-foreground/50">—</span>
+        )}
+      </div>
+
+      {/* Habit name in habit color */}
+      <div className="w-40 flex-shrink-0 flex items-center justify-between pr-2">
         <div className="flex items-center gap-2 min-w-0">
-          <div 
-            className="w-2.5 h-2.5 rounded-full flex-shrink-0" 
-            style={{ backgroundColor: habit.color }}
-          />
-          <span className="font-medium text-sm truncate">{habit.name}</span>
+          <span 
+            className="font-medium text-sm truncate"
+            style={{ color: habit.color }}
+          >
+            {habit.name}
+          </span>
         </div>
         
         <DropdownMenu>
@@ -58,6 +70,10 @@ export function HabitRow({
             <DropdownMenuItem onClick={onEdit} className="gap-2">
               <Pencil className="h-4 w-4" />
               Edit
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onArchive} className="gap-2">
+              <Archive className="h-4 w-4" />
+              Archive
             </DropdownMenuItem>
             <DropdownMenuItem 
               onClick={onDelete} 
@@ -77,10 +93,7 @@ export function HabitRow({
           const status = getCompletionStatus(habit.id, dateStr);
           
           return (
-            <div 
-              key={dateStr}
-              className={cn(isToday(date) && 'today-column')}
-            >
+            <div key={dateStr}>
               <CompletionCell
                 status={status}
                 color={habit.color}
@@ -92,24 +105,6 @@ export function HabitRow({
             </div>
           );
         })}
-      </div>
-
-      {/* Streak indicator */}
-      <div className="w-20 flex-shrink-0 flex items-center gap-1 pl-3 border-l border-border/50">
-        {streak.current > 0 && (
-          <>
-            <Flame 
-              className={cn(
-                "h-4 w-4",
-                streak.current >= 7 ? "text-orange-500" : "text-muted-foreground"
-              )} 
-            />
-            <span className="text-sm font-medium">{streak.current}</span>
-          </>
-        )}
-        {streak.current === 0 && (
-          <span className="text-sm text-muted-foreground">—</span>
-        )}
       </div>
     </div>
   );

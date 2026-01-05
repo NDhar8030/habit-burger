@@ -245,23 +245,72 @@ export function useHabits() {
 
   const getStreakOpacity = (habitId: string, isReverse: boolean): number => {
     const { current } = calculateStreak(habitId);
-    const baseOpacity = 0.4;
-    const maxOpacity = 1;
-    const streakFactor = Math.min(current / 30, 1); // Max out at 30 days
+    const maxStreak = 10;
+    const streakCapped = Math.min(current, maxStreak);
     
     if (isReverse) {
-      return Math.max(maxOpacity - (streakFactor * 0.6), baseOpacity);
+      // Reverse: starts at 100%, decreases by 10% per day to 0% at day 10
+      return Math.max(1 - (streakCapped * 0.1), 0);
     }
-    return baseOpacity + (streakFactor * (maxOpacity - baseOpacity));
+    // Normal: starts at 10%, increases by 10% per day to 100% at day 10
+    return Math.max(streakCapped * 0.1, 0.1);
   };
 
+  const archiveHabit = useMutation({
+    mutationFn: async (id: string) => {
+      const { data, error } = await supabase
+        .from('habits')
+        .update({ archived: true })
+        .eq('id', id)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['habits'] });
+      toast.success('Habit archived');
+    },
+    onError: (error) => {
+      toast.error('Failed to archive habit: ' + error.message);
+    },
+  });
+
+  const unarchiveHabit = useMutation({
+    mutationFn: async (id: string) => {
+      const { data, error } = await supabase
+        .from('habits')
+        .update({ archived: false })
+        .eq('id', id)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['habits'] });
+      toast.success('Habit restored');
+    },
+    onError: (error) => {
+      toast.error('Failed to restore habit: ' + error.message);
+    },
+  });
+
+  const activeHabits = (habitsQuery.data || []).filter(h => !h.archived);
+  const archivedHabits = (habitsQuery.data || []).filter(h => h.archived);
+
   return {
-    habits: habitsQuery.data || [],
+    habits: activeHabits,
+    archivedHabits,
     completions: completionsQuery.data || [],
     isLoading: habitsQuery.isLoading || completionsQuery.isLoading,
     createHabit,
     updateHabit,
     deleteHabit,
+    archiveHabit,
+    unarchiveHabit,
     toggleCompletion,
     getCompletionStatus,
     calculateStreak,

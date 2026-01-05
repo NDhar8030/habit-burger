@@ -4,8 +4,9 @@ import { Habit } from '@/types/habit';
 import { HabitRow } from './HabitRow';
 import { TimelineHeader } from './TimelineHeader';
 import { AddHabitModal } from './AddHabitModal';
+import { ArchivedHabitsSheet } from './ArchivedHabitsSheet';
 import { Button } from '@/components/ui/button';
-import { Plus, Loader2 } from 'lucide-react';
+import { Plus, Loader2, Archive } from 'lucide-react';
 import { subDays, addDays, format } from 'date-fns';
 import {
   AlertDialog,
@@ -23,10 +24,13 @@ const VISIBLE_DAYS = 60;
 export function HabitTracker() {
   const {
     habits,
+    archivedHabits,
     isLoading,
     createHabit,
     updateHabit,
     deleteHabit,
+    archiveHabit,
+    unarchiveHabit,
     toggleCompletion,
     getCompletionStatus,
     calculateStreak,
@@ -36,6 +40,7 @@ export function HabitTracker() {
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [editingHabit, setEditingHabit] = useState<Habit | null>(null);
   const [deletingHabit, setDeletingHabit] = useState<Habit | null>(null);
+  const [archivedSheetOpen, setArchivedSheetOpen] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   // Generate dates for the timeline
@@ -76,6 +81,14 @@ export function HabitTracker() {
     }
   };
 
+  const handleArchiveHabit = async (id: string) => {
+    await archiveHabit.mutateAsync(id);
+  };
+
+  const handleUnarchiveHabit = async (id: string) => {
+    await unarchiveHabit.mutateAsync(id);
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -97,9 +110,9 @@ export function HabitTracker() {
           {habits.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <div className="flex gap-1 mb-4">
+                <div className="w-5 h-5 rounded-sm bg-emerald-500/20" />
                 <div className="w-5 h-5 rounded-sm bg-emerald-500/40" />
-                <div className="w-5 h-5 rounded-sm bg-emerald-500/60" />
-                <div className="w-5 h-5 rounded-sm bg-emerald-500/80" />
+                <div className="w-5 h-5 rounded-sm bg-emerald-500/70" />
                 <div className="w-5 h-5 rounded-sm bg-emerald-500" />
               </div>
               <h3 className="text-lg font-semibold mb-2">No habits yet</h3>
@@ -130,6 +143,7 @@ export function HabitTracker() {
                     setAddModalOpen(true);
                   }}
                   onDelete={() => setDeletingHabit(habit)}
+                  onArchive={() => handleArchiveHabit(habit.id)}
                 />
               ))}
             </div>
@@ -137,19 +151,29 @@ export function HabitTracker() {
         </div>
       </div>
 
-      {/* Add habit button */}
-      {habits.length > 0 && (
-        <div className="border-t border-border/50 pt-4 mt-4">
-          <Button 
-            variant="ghost" 
-            className="w-full justify-start text-muted-foreground hover:text-foreground"
-            onClick={() => setAddModalOpen(true)}
+      {/* Bottom actions */}
+      <div className="border-t border-border/50 pt-4 mt-4 flex items-center justify-between">
+        <Button 
+          variant="ghost" 
+          className="text-muted-foreground hover:text-foreground"
+          onClick={() => setAddModalOpen(true)}
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          Add habit
+        </Button>
+        
+        {archivedHabits.length > 0 && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground hover:text-foreground"
+            onClick={() => setArchivedSheetOpen(true)}
           >
-            <Plus className="h-4 w-4 mr-2" />
-            Add habit
+            <Archive className="h-4 w-4 mr-2" />
+            Archived ({archivedHabits.length})
           </Button>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Add/Edit modal */}
       <AddHabitModal
@@ -160,6 +184,18 @@ export function HabitTracker() {
         }}
         onSubmit={handleSubmitHabit}
         editingHabit={editingHabit}
+      />
+
+      {/* Archived habits sheet */}
+      <ArchivedHabitsSheet
+        open={archivedSheetOpen}
+        onOpenChange={setArchivedSheetOpen}
+        archivedHabits={archivedHabits}
+        onRestore={handleUnarchiveHabit}
+        onDelete={(habit) => {
+          setArchivedSheetOpen(false);
+          setDeletingHabit(habit);
+        }}
       />
 
       {/* Delete confirmation */}

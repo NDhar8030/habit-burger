@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useHabits } from '@/hooks/useHabits';
 import { Habit } from '@/types/habit';
 import { HabitRow } from './HabitRow';
@@ -7,7 +7,7 @@ import { AddHabitModal } from './AddHabitModal';
 import { ArchivedHabitsSheet } from './ArchivedHabitsSheet';
 import { Button } from '@/components/ui/button';
 import { Plus, Loader2, Archive } from 'lucide-react';
-import { subDays, addDays, format } from 'date-fns';
+import { subDays } from 'date-fns';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,7 +19,10 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 
-const VISIBLE_DAYS = 60;
+// Fixed dimensions - must match CSS variables
+const CELL_SIZE = 20;
+const CELL_GAP = 3;
+const LEFT_PANEL_WIDTH = 208; // streak (48px) + habit name (160px)
 
 export function HabitTracker() {
   const {
@@ -41,30 +44,58 @@ export function HabitTracker() {
   const [editingHabit, setEditingHabit] = useState<Habit | null>(null);
   const [deletingHabit, setDeletingHabit] = useState<Habit | null>(null);
   const [archivedSheetOpen, setArchivedSheetOpen] = useState(false);
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [visibleDays, setVisibleDays] = useState(0);
 
-  // Generate dates for the timeline
-  const dates = useMemo(() => {
-    const today = new Date();
-    const result: Date[] = [];
-    for (let i = VISIBLE_DAYS - 1; i >= -3; i--) {
-      result.push(i > 0 ? subDays(today, i) : addDays(today, Math.abs(i)));
+  // Calculate how many days can fit in the available width
+  const calculateVisibleDays = useCallback(() => {
+    if (!containerRef.current) return;
+    
+    const containerWidth = containerRef.current.clientWidth;
+    const availableWidth = containerWidth - LEFT_PANEL_WIDTH - 16; // 16px for padding
+    
+    if (availableWidth <= 0) {
+      setVisibleDays(0);
+      return;
     }
-    return result;
+    
+    // Each cell takes CELL_SIZE + CELL_GAP (except last one has no gap)
+    // Formula: n * CELL_SIZE + (n-1) * CELL_GAP <= availableWidth
+    // n * (CELL_SIZE + CELL_GAP) - CELL_GAP <= availableWidth
+    // n <= (availableWidth + CELL_GAP) / (CELL_SIZE + CELL_GAP)
+    const maxDays = Math.floor((availableWidth + CELL_GAP) / (CELL_SIZE + CELL_GAP));
+    setVisibleDays(Math.max(0, maxDays));
   }, []);
 
-  // Scroll to today on mount
+  // Recalculate on mount and resize
   useEffect(() => {
-    if (scrollContainerRef.current) {
-      const container = scrollContainerRef.current;
-      const todayIndex = dates.findIndex(d => 
-        format(d, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd')
-      );
-      const cellWidth = 20 + 3; // cell size + gap
-      const scrollPosition = todayIndex * cellWidth - container.clientWidth / 2;
-      container.scrollLeft = Math.max(0, scrollPosition);
+    calculateVisibleDays();
+    
+    const resizeObserver = new ResizeObserver(() => {
+      calculateVisibleDays();
+    });
+    
+    if (containerRef.current) {
+      resizeObserver.observe(containerRef.current);
     }
-  }, [dates, habits.length]);
+    
+    return () => resizeObserver.disconnect();
+  }, [calculateVisibleDays]);
+
+  // Generate dates for the timeline - today is at the right, previous days to the left
+  const dates = useMemo(() => {
+    if (visibleDays === 0) return [];
+    
+    const today = new Date();
+    const result: Date[] = [];
+    
+    // Start from (visibleDays - 1) days ago, ending with today
+    for (let i = visibleDays - 1; i >= 0; i--) {
+      result.push(subDays(today, i));
+    }
+    
+    return result;
+  }, [visibleDays]);
 
   const handleSubmitHabit = async (habit: Partial<Habit>) => {
     if (habit.id) {
@@ -98,57 +129,53 @@ export function HabitTracker() {
   }
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Timeline header and grid */}
-      <div 
-        ref={scrollContainerRef}
-        className="flex-1 overflow-x-auto scrollbar-thin"
-      >
-        <div className="min-w-max">
-          <TimelineHeader dates={dates} />
-          
-          {habits.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
-              <div className="flex gap-1 mb-4">
-                <div className="w-5 h-5 rounded-sm bg-emerald-500/20" />
-                <div className="w-5 h-5 rounded-sm bg-emerald-500/40" />
-                <div className="w-5 h-5 rounded-sm bg-emerald-500/70" />
-                <div className="w-5 h-5 rounded-sm bg-emerald-500" />
-              </div>
-              <h3 className="text-lg font-semibold mb-2">No habits yet</h3>
-              <p className="text-muted-foreground mb-6 max-w-sm">
-                Create your first habit and start building your streak. 
-                Don't break the chain!
-              </p>
-              <Button onClick={() => setAddModalOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Your First Habit
-              </Button>
+    <div ref={containerRef} className="flex flex-col h-full overflow-hidden">
+      {/* Timeline header and grid - no scrolling */}
+      <div className="flex-1">
+        <TimelineHeader dates={dates} visibleDays={visibleDays} />
+        
+        {habits.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="flex gap-1 mb-4">
+              <div className="w-5 h-5 rounded-sm bg-emerald-500/20" />
+              <div className="w-5 h-5 rounded-sm bg-emerald-500/40" />
+              <div className="w-5 h-5 rounded-sm bg-emerald-500/70" />
+              <div className="w-5 h-5 rounded-sm bg-emerald-500" />
             </div>
-          ) : (
-            <div className="space-y-1">
-              {habits.map((habit) => (
-                <HabitRow
-                  key={habit.id}
-                  habit={habit}
-                  dates={dates}
-                  getCompletionStatus={getCompletionStatus}
-                  onToggleCompletion={(habitId, date, status) => 
-                    toggleCompletion.mutate({ habitId, date, status })
-                  }
-                  streak={calculateStreak(habit.id)}
-                  opacity={getStreakOpacity(habit.id, habit.is_reverse)}
-                  onEdit={() => {
-                    setEditingHabit(habit);
-                    setAddModalOpen(true);
-                  }}
-                  onDelete={() => setDeletingHabit(habit)}
-                  onArchive={() => handleArchiveHabit(habit.id)}
-                />
-              ))}
-            </div>
-          )}
-        </div>
+            <h3 className="text-lg font-semibold mb-2">No habits yet</h3>
+            <p className="text-muted-foreground mb-6 max-w-sm">
+              Create your first habit and start building your streak. 
+              Don't break the chain!
+            </p>
+            <Button onClick={() => setAddModalOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Your First Habit
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-1">
+            {habits.map((habit) => (
+              <HabitRow
+                key={habit.id}
+                habit={habit}
+                dates={dates}
+                visibleDays={visibleDays}
+                getCompletionStatus={getCompletionStatus}
+                onToggleCompletion={(habitId, date, status) => 
+                  toggleCompletion.mutate({ habitId, date, status })
+                }
+                streak={calculateStreak(habit.id)}
+                opacity={getStreakOpacity(habit.id, habit.is_reverse)}
+                onEdit={() => {
+                  setEditingHabit(habit);
+                  setAddModalOpen(true);
+                }}
+                onDelete={() => setDeletingHabit(habit)}
+                onArchive={() => handleArchiveHabit(habit.id)}
+              />
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Bottom actions */}

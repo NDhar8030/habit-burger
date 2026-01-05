@@ -9,7 +9,9 @@ import { z } from 'zod';
 
 const authSchema = z.object({
   email: z.string().trim().email('Please enter a valid email'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
+  password: z.string()
+    .regex(/[A-Z]/, 'Password must contain an uppercase letter')
+    .regex(/[0-9]/, 'Password must contain a number'),
 });
 
 export function AuthForm() {

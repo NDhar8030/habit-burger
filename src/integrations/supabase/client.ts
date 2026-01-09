@@ -7,6 +7,21 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 // Support both local (.env uses PUBLISHABLE_KEY) and Lovable (uses ANON_KEY)
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
+// Debug: log which env vars are available (remove after debugging)
+console.log('Supabase ENV Debug:', {
+  hasUrl: !!SUPABASE_URL,
+  hasAnonKey: !!import.meta.env.VITE_SUPABASE_ANON_KEY,
+  hasPublishableKey: !!import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+  hasKey: !!SUPABASE_KEY,
+});
+
+if (!SUPABASE_URL || !SUPABASE_KEY) {
+  console.error('Missing Supabase environment variables!', {
+    SUPABASE_URL: SUPABASE_URL ? 'SET' : 'MISSING',
+    SUPABASE_KEY: SUPABASE_KEY ? 'SET' : 'MISSING',
+  });
+}
+
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 

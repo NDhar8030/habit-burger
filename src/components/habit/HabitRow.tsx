@@ -1,6 +1,6 @@
 import { Habit, CompletionStatus } from '@/types/habit';
 import { CompletionCell } from './CompletionCell';
-import { format, isToday, isFuture } from 'date-fns';
+import { format, isToday, isFuture, subDays } from 'date-fns';
 import { MoreHorizontal, Trash2, Pencil, Archive } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -95,6 +95,11 @@ export function HabitRow({
             const dateStr = format(date, 'yyyy-MM-dd');
             const { status, opacity } = getCompletionDetails(habit.id, dateStr);
             
+            // Check if previous day was skipped (for preventing two skips in a row)
+            const prevDateStr = format(subDays(date, 1), 'yyyy-MM-dd');
+            const prevDayDetails = getCompletionDetails(habit.id, prevDateStr);
+            const isPrevDaySkipped = prevDayDetails.status === 'skipped';
+            
             return (
               <div key={dateStr}>
                 <CompletionCell
@@ -103,6 +108,7 @@ export function HabitRow({
                   opacity={opacity}
                   isToday={isToday(date)}
                   isFuture={isFuture(date)}
+                  isPrevDaySkipped={isPrevDaySkipped}
                   onToggle={(newStatus) => onToggleCompletion(habit.id, dateStr, newStatus)}
                 />
               </div>

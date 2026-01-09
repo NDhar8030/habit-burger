@@ -14,6 +14,7 @@ interface CompletionCellProps {
   opacity: number;
   isToday: boolean;
   isFuture: boolean;
+  isPrevDaySkipped: boolean;
   onToggle: (status: CompletionStatus) => void;
 }
 
@@ -23,19 +24,27 @@ export function CompletionCell({
   opacity,
   isToday, 
   isFuture,
+  isPrevDaySkipped,
   onToggle 
 }: CompletionCellProps) {
   // Click cycle: empty → filled → skip → empty
   // - Tapping empty square fills it
-  // - Tapping filled square turns it into skip day
+  // - Tapping filled square turns it into skip day (unless previous day is already skipped)
   // - Tapping skip day clears it (makes it empty)
+  // Two skips in a row are not allowed - they break the streak
   const handleClick = () => {
     if (isFuture) return;
     
     if (status === 'incomplete') {
       onToggle('completed');
     } else if (status === 'completed') {
-      onToggle('skipped');
+      // If previous day is already skipped, can't skip this day (would be 2 in a row)
+      // Instead, clear this day
+      if (isPrevDaySkipped) {
+        onToggle('incomplete');
+      } else {
+        onToggle('skipped');
+      }
     } else if (status === 'skipped') {
       onToggle('incomplete');
     }

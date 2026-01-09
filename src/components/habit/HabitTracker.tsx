@@ -47,8 +47,11 @@ export function HabitTracker() {
   const [visibleDays, setVisibleDays] = useState(0);
   const retryTimeoutRef = useRef<number | null>(null);
 
-  // Recalculate visible days on mount and resize
+  // Recalculate visible days on mount, when loading completes, and on resize
   useEffect(() => {
+    // Don't set up observers while loading - the container isn't rendered yet
+    if (isLoading) return;
+    
     const container = containerRef.current;
     if (!container) return;
 
@@ -102,7 +105,7 @@ export function HabitTracker() {
       resizeObserver.disconnect();
       window.removeEventListener('resize', handleWindowResize);
     };
-  }, []);
+  }, [isLoading]); // Re-run when loading state changes
 
   // Generate dates for the timeline - today is at the right, previous days to the left
   const dates = useMemo(() => {

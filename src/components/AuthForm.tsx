@@ -7,11 +7,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Loader2, CheckCircle2 } from 'lucide-react';
 import { z } from 'zod';
 
+// DON'T CHANGE THE PASSWORD REQUIREMENTS
+
 const authSchema = z.object({
   email: z.string().trim().email('Please enter a valid email'),
   password: z.string()
+    .min(6, 'Password must be at least 6 characters long')
+    .regex(/[a-z]/, 'Password must contain a lowercase letter')
     .regex(/[A-Z]/, 'Password must contain an uppercase letter')
-    .regex(/[0-9]/, 'Password must contain a number'),
+    .regex(/[0-9]/, 'Password must contain a digit')
+    .regex(/[^a-zA-Z0-9]/, 'Password must contain a symbol'),
 });
 
 export function AuthForm() {

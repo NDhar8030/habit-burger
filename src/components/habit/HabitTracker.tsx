@@ -7,7 +7,7 @@ import { AddHabitModal } from './AddHabitModal';
 import { ArchivedHabitsSheet } from './ArchivedHabitsSheet';
 import { Button } from '@/components/ui/button';
 import { Plus, Loader2, Archive } from 'lucide-react';
-import { subDays, addDays, format } from 'date-fns';
+import { subDays } from 'date-fns';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,7 +19,10 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 
-const VISIBLE_DAYS = 60;
+// Fixed dimensions - must match CSS variables
+const CELL_SIZE = 20;
+const CELL_GAP = 3;
+const LEFT_PANEL_WIDTH = 208; // streak (48px) + habit name (160px)
 
 export function HabitTracker() {
   const {
@@ -32,39 +35,92 @@ export function HabitTracker() {
     archiveHabit,
     unarchiveHabit,
     toggleCompletion,
-    getCompletionStatus,
+    getCompletionDetails,
     calculateStreak,
-    getStreakOpacity,
   } = useHabits();
 
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [editingHabit, setEditingHabit] = useState<Habit | null>(null);
   const [deletingHabit, setDeletingHabit] = useState<Habit | null>(null);
   const [archivedSheetOpen, setArchivedSheetOpen] = useState(false);
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [visibleDays, setVisibleDays] = useState(0);
+  const retryTimeoutRef = useRef<number | null>(null);
 
-  // Generate dates for the timeline
+  // Recalculate visible days on mount, when loading completes, and on resize
+  useEffect(() => {
+    // Don't set up observers while loading - the container isn't rendered yet
+    if (isLoading) return;
+    
+    const container = containerRef.current;
+    if (!container) return;
+
+    const calculateAndSetVisibleDays = (retryCount = 0) => {
+      const containerWidth = container.clientWidth;
+      
+      // If container hasn't rendered yet, retry up to 10 times
+      if (containerWidth === 0) {
+        if (retryCount < 10) {
+          retryTimeoutRef.current = window.setTimeout(() => {
+            calculateAndSetVisibleDays(retryCount + 1);
+          }, 50);
+        }
+        return;
+      }
+      
+      const availableWidth = containerWidth - LEFT_PANEL_WIDTH - 8; // 8px for gap
+      
+      if (availableWidth <= 0) {
+        setVisibleDays(0);
+        return;
+      }
+      
+      // Each cell takes CELL_SIZE + CELL_GAP (except last one has no gap)
+      // n <= (availableWidth + CELL_GAP) / (CELL_SIZE + CELL_GAP)
+      const maxDays = Math.floor((availableWidth + CELL_GAP) / (CELL_SIZE + CELL_GAP));
+      setVisibleDays(Math.max(0, maxDays));
+    };
+
+    // Initial calculation after paint
+    const rafId = requestAnimationFrame(() => calculateAndSetVisibleDays(0));
+    
+    // Observe resize - ResizeObserver fires immediately with current size
+    const resizeObserver = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (entry && entry.contentRect.width > 0) {
+        calculateAndSetVisibleDays(0);
+      }
+    });
+    resizeObserver.observe(container);
+
+    // Also listen to window resize as backup
+    const handleWindowResize = () => calculateAndSetVisibleDays(0);
+    window.addEventListener('resize', handleWindowResize);
+    
+    return () => {
+      cancelAnimationFrame(rafId);
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
+      }
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', handleWindowResize);
+    };
+  }, [isLoading]); // Re-run when loading state changes
+
+  // Generate dates for the timeline - today is at the right, previous days to the left
   const dates = useMemo(() => {
+    if (visibleDays === 0) return [];
+    
     const today = new Date();
     const result: Date[] = [];
-    for (let i = VISIBLE_DAYS - 1; i >= -3; i--) {
-      result.push(i > 0 ? subDays(today, i) : addDays(today, Math.abs(i)));
+    
+    // Start from (visibleDays - 1) days ago, ending with today
+    for (let i = visibleDays - 1; i >= 0; i--) {
+      result.push(subDays(today, i));
     }
+    
     return result;
-  }, []);
-
-  // Scroll to today on mount
-  useEffect(() => {
-    if (scrollContainerRef.current) {
-      const container = scrollContainerRef.current;
-      const todayIndex = dates.findIndex(d => 
-        format(d, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd')
-      );
-      const cellWidth = 20 + 3; // cell size + gap
-      const scrollPosition = todayIndex * cellWidth - container.clientWidth / 2;
-      container.scrollLeft = Math.max(0, scrollPosition);
-    }
-  }, [dates, habits.length]);
+  }, [visibleDays]);
 
   const handleSubmitHabit = async (habit: Partial<Habit>) => {
     if (habit.id) {
@@ -98,57 +154,52 @@ export function HabitTracker() {
   }
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Timeline header and grid */}
-      <div 
-        ref={scrollContainerRef}
-        className="flex-1 overflow-x-auto scrollbar-thin"
-      >
-        <div className="min-w-max">
-          <TimelineHeader dates={dates} />
-          
-          {habits.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
-              <div className="flex gap-1 mb-4">
-                <div className="w-5 h-5 rounded-sm bg-emerald-500/20" />
-                <div className="w-5 h-5 rounded-sm bg-emerald-500/40" />
-                <div className="w-5 h-5 rounded-sm bg-emerald-500/70" />
-                <div className="w-5 h-5 rounded-sm bg-emerald-500" />
-              </div>
-              <h3 className="text-lg font-semibold mb-2">No habits yet</h3>
-              <p className="text-muted-foreground mb-6 max-w-sm">
-                Create your first habit and start building your streak. 
-                Don't break the chain!
-              </p>
-              <Button onClick={() => setAddModalOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Your First Habit
-              </Button>
+    <div ref={containerRef} className="flex flex-col h-full w-full">
+      {/* Timeline header and grid - no scrolling */}
+      <div className="flex-1">
+        <TimelineHeader dates={dates} visibleDays={visibleDays} />
+        
+        {habits.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="flex gap-1 mb-4">
+              <div className="w-5 h-5 rounded-sm bg-emerald-500/20" />
+              <div className="w-5 h-5 rounded-sm bg-emerald-500/40" />
+              <div className="w-5 h-5 rounded-sm bg-emerald-500/70" />
+              <div className="w-5 h-5 rounded-sm bg-emerald-500" />
             </div>
-          ) : (
-            <div className="space-y-1">
-              {habits.map((habit) => (
-                <HabitRow
-                  key={habit.id}
-                  habit={habit}
-                  dates={dates}
-                  getCompletionStatus={getCompletionStatus}
-                  onToggleCompletion={(habitId, date, status) => 
-                    toggleCompletion.mutate({ habitId, date, status })
-                  }
-                  streak={calculateStreak(habit.id)}
-                  opacity={getStreakOpacity(habit.id, habit.is_reverse)}
-                  onEdit={() => {
-                    setEditingHabit(habit);
-                    setAddModalOpen(true);
-                  }}
-                  onDelete={() => setDeletingHabit(habit)}
-                  onArchive={() => handleArchiveHabit(habit.id)}
-                />
-              ))}
-            </div>
-          )}
-        </div>
+            <h3 className="text-lg font-semibold mb-2">No habits yet</h3>
+            <p className="text-muted-foreground mb-6 max-w-sm">
+              Create your first habit and start building your streak. 
+              Don't break the chain!
+            </p>
+            <Button onClick={() => setAddModalOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Your First Habit
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-1">
+            {habits.map((habit) => (
+              <HabitRow
+                key={habit.id}
+                habit={habit}
+                dates={dates}
+                visibleDays={visibleDays}
+                getCompletionDetails={getCompletionDetails}
+                onToggleCompletion={(habitId, date, status) => 
+                  toggleCompletion.mutate({ habitId, date, status })
+                }
+                streak={calculateStreak(habit.id)}
+                onEdit={() => {
+                  setEditingHabit(habit);
+                  setAddModalOpen(true);
+                }}
+                onDelete={() => setDeletingHabit(habit)}
+                onArchive={() => handleArchiveHabit(habit.id)}
+              />
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Bottom actions */}

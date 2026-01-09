@@ -20,9 +20,9 @@ const Index = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="h-screen bg-background flex flex-col">
       <Header />
-      <main className="flex-1 container max-w-6xl mx-auto px-4 py-6">
+      <main className="flex-1 w-full px-4 py-6 min-h-0">
         <HabitTracker />
       </main>
     </div>

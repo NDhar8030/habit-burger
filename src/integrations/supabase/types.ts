@@ -21,6 +21,7 @@ export type Database = {
           habit_id: string
           id: string
           notes: string | null
+          opacity: number | null
           status: string | null
           user_id: string
         }
@@ -30,6 +31,7 @@ export type Database = {
           habit_id: string
           id?: string
           notes?: string | null
+          opacity?: number | null
           status?: string | null
           user_id: string
         }
@@ -39,6 +41,7 @@ export type Database = {
           habit_id?: string
           id?: string
           notes?: string | null
+          opacity?: number | null
           status?: string | null
           user_id?: string
         }

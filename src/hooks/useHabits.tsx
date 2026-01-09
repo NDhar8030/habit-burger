@@ -179,6 +179,108 @@ export function useHabits() {
     return completion?.status || 'incomplete';
   };
 
+  // Calculate dynamic opacity based on position within the streak
+  // The streak is calculated by finding the consecutive sequence this date belongs to
+  const getCompletionDetails = (habitId: string, date: string): { status: CompletionStatus; opacity: number } => {
+    const completion = completionsQuery.data?.find(
+      c => c.habit_id === habitId && c.date === date
+    );
+    
+    if (!completion) {
+      return { status: 'incomplete', opacity: 0.1 };
+    }
+
+    const habit = habitsQuery.data?.find(h => h.id === habitId);
+    const isReverse = habit?.is_reverse || false;
+    const habitCompletions = completionsQuery.data?.filter(c => c.habit_id === habitId) || [];
+    const completionMap = new Map(habitCompletions.map(c => [c.date, c]));
+    
+    // Find the start of the streak this date belongs to (go backwards until we hit a break)
+    let streakStart = parseISO(date);
+    let consecutiveSkips = 0;
+    let prevDate = subDays(streakStart, 1);
+    
+    while (true) {
+      const prevDateStr = format(prevDate, 'yyyy-MM-dd');
+      const prevCompletion = completionMap.get(prevDateStr);
+      
+      if (prevCompletion?.status === 'completed') {
+        streakStart = prevDate;
+        consecutiveSkips = 0;
+      } else if (prevCompletion?.status === 'skipped') {
+        consecutiveSkips++;
+        if (consecutiveSkips >= 2) {
+          // Two skips in a row breaks the streak, start after the second skip
+          break;
+        }
+        streakStart = prevDate;
+      } else {
+        // No completion = streak break
+        break;
+      }
+      
+      prevDate = subDays(prevDate, 1);
+    }
+    
+    // Now count position from streakStart to this date
+    // Position 1 = first day of streak (lowest opacity for normal, highest for reverse)
+    let position = 1;
+    consecutiveSkips = 0;
+    let checkDate = streakStart;
+    const targetDate = parseISO(date);
+    
+    while (format(checkDate, 'yyyy-MM-dd') !== date) {
+      const checkDateStr = format(checkDate, 'yyyy-MM-dd');
+      const checkCompletion = completionMap.get(checkDateStr);
+      
+      if (checkCompletion?.status === 'completed') {
+        position++;
+        consecutiveSkips = 0;
+      } else if (checkCompletion?.status === 'skipped') {
+        consecutiveSkips++;
+        // Skip days don't increment position (they inherit previous opacity)
+      }
+      
+      checkDate = new Date(checkDate.getTime() + 24 * 60 * 60 * 1000); // Add one day
+      
+      // Safety check to prevent infinite loop
+      if (checkDate > targetDate) break;
+    }
+    
+    // For skip days, inherit opacity from previous completed day in streak
+    if (completion.status === 'skipped') {
+      // Find the most recent completed day before this skip
+      let searchDate = subDays(parseISO(date), 1);
+      while (format(searchDate, 'yyyy-MM-dd') >= format(streakStart, 'yyyy-MM-dd')) {
+        const searchDateStr = format(searchDate, 'yyyy-MM-dd');
+        const searchCompletion = completionMap.get(searchDateStr);
+        if (searchCompletion?.status === 'completed') {
+          // Use that day's position
+          break;
+        }
+        position--;
+        searchDate = subDays(searchDate, 1);
+      }
+    }
+    
+    const maxStreak = 10;
+    const positionCapped = Math.min(position, maxStreak);
+    
+    let opacity: number;
+    if (isReverse) {
+      // Reverse: starts at 100%, decreases by 10% per day
+      opacity = Math.max(1 - (positionCapped * 0.1), 0.1);
+    } else {
+      // Normal: starts at 10%, increases by 10% per day
+      opacity = Math.min(positionCapped * 0.1, 1);
+    }
+    
+    return {
+      status: completion.status as CompletionStatus,
+      opacity: Math.max(opacity, 0.1), // Minimum 10% opacity
+    };
+  };
+
   const calculateStreak = (habitId: string): { current: number; best: number; total: number } => {
     const habitCompletions = completionsQuery.data?.filter(c => c.habit_id === habitId) || [];
     const completionMap = new Map(habitCompletions.map(c => [c.date, c.status]));
@@ -313,6 +415,7 @@ export function useHabits() {
     unarchiveHabit,
     toggleCompletion,
     getCompletionStatus,
+    getCompletionDetails,
     calculateStreak,
     getStreakOpacity,
   };

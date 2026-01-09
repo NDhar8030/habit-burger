@@ -18,6 +18,7 @@ export interface Completion {
   user_id: string;
   date: string;
   status: 'completed' | 'skipped';
+  opacity: number;
   notes: string | null;
   created_at: string;
 }

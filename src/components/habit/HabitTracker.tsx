@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { useHabits } from '@/hooks/useHabits';
 import { Habit } from '@/types/habit';
 import { HabitRow } from './HabitRow';
@@ -35,9 +35,8 @@ export function HabitTracker() {
     archiveHabit,
     unarchiveHabit,
     toggleCompletion,
-    getCompletionStatus,
+    getCompletionDetails,
     calculateStreak,
-    getStreakOpacity,
   } = useHabits();
 
   const [addModalOpen, setAddModalOpen] = useState(false);
@@ -46,41 +45,64 @@ export function HabitTracker() {
   const [archivedSheetOpen, setArchivedSheetOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const [visibleDays, setVisibleDays] = useState(0);
+  const retryTimeoutRef = useRef<number | null>(null);
 
-  // Calculate how many days can fit in the available width
-  const calculateVisibleDays = useCallback(() => {
-    if (!containerRef.current) return;
-    
-    const containerWidth = containerRef.current.clientWidth;
-    const availableWidth = containerWidth - LEFT_PANEL_WIDTH - 16; // 16px for padding
-    
-    if (availableWidth <= 0) {
-      setVisibleDays(0);
-      return;
-    }
-    
-    // Each cell takes CELL_SIZE + CELL_GAP (except last one has no gap)
-    // Formula: n * CELL_SIZE + (n-1) * CELL_GAP <= availableWidth
-    // n * (CELL_SIZE + CELL_GAP) - CELL_GAP <= availableWidth
-    // n <= (availableWidth + CELL_GAP) / (CELL_SIZE + CELL_GAP)
-    const maxDays = Math.floor((availableWidth + CELL_GAP) / (CELL_SIZE + CELL_GAP));
-    setVisibleDays(Math.max(0, maxDays));
-  }, []);
-
-  // Recalculate on mount and resize
+  // Recalculate visible days on mount and resize
   useEffect(() => {
-    calculateVisibleDays();
+    const container = containerRef.current;
+    if (!container) return;
+
+    const calculateAndSetVisibleDays = (retryCount = 0) => {
+      const containerWidth = container.clientWidth;
+      
+      // If container hasn't rendered yet, retry up to 10 times
+      if (containerWidth === 0) {
+        if (retryCount < 10) {
+          retryTimeoutRef.current = window.setTimeout(() => {
+            calculateAndSetVisibleDays(retryCount + 1);
+          }, 50);
+        }
+        return;
+      }
+      
+      const availableWidth = containerWidth - LEFT_PANEL_WIDTH - 8; // 8px for gap
+      
+      if (availableWidth <= 0) {
+        setVisibleDays(0);
+        return;
+      }
+      
+      // Each cell takes CELL_SIZE + CELL_GAP (except last one has no gap)
+      // n <= (availableWidth + CELL_GAP) / (CELL_SIZE + CELL_GAP)
+      const maxDays = Math.floor((availableWidth + CELL_GAP) / (CELL_SIZE + CELL_GAP));
+      setVisibleDays(Math.max(0, maxDays));
+    };
+
+    // Initial calculation after paint
+    const rafId = requestAnimationFrame(() => calculateAndSetVisibleDays(0));
     
-    const resizeObserver = new ResizeObserver(() => {
-      calculateVisibleDays();
+    // Observe resize - ResizeObserver fires immediately with current size
+    const resizeObserver = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (entry && entry.contentRect.width > 0) {
+        calculateAndSetVisibleDays(0);
+      }
     });
+    resizeObserver.observe(container);
+
+    // Also listen to window resize as backup
+    const handleWindowResize = () => calculateAndSetVisibleDays(0);
+    window.addEventListener('resize', handleWindowResize);
     
-    if (containerRef.current) {
-      resizeObserver.observe(containerRef.current);
-    }
-    
-    return () => resizeObserver.disconnect();
-  }, [calculateVisibleDays]);
+    return () => {
+      cancelAnimationFrame(rafId);
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
+      }
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', handleWindowResize);
+    };
+  }, []);
 
   // Generate dates for the timeline - today is at the right, previous days to the left
   const dates = useMemo(() => {
@@ -129,7 +151,7 @@ export function HabitTracker() {
   }
 
   return (
-    <div ref={containerRef} className="flex flex-col h-full overflow-hidden">
+    <div ref={containerRef} className="flex flex-col h-full w-full">
       {/* Timeline header and grid - no scrolling */}
       <div className="flex-1">
         <TimelineHeader dates={dates} visibleDays={visibleDays} />
@@ -160,12 +182,11 @@ export function HabitTracker() {
                 habit={habit}
                 dates={dates}
                 visibleDays={visibleDays}
-                getCompletionStatus={getCompletionStatus}
+                getCompletionDetails={getCompletionDetails}
                 onToggleCompletion={(habitId, date, status) => 
                   toggleCompletion.mutate({ habitId, date, status })
                 }
                 streak={calculateStreak(habit.id)}
-                opacity={getStreakOpacity(habit.id, habit.is_reverse)}
                 onEdit={() => {
                   setEditingHabit(habit);
                   setAddModalOpen(true);

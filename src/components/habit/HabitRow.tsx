@@ -14,10 +14,9 @@ interface HabitRowProps {
   habit: Habit;
   dates: Date[];
   visibleDays: number;
-  getCompletionStatus: (habitId: string, date: string) => CompletionStatus;
+  getCompletionDetails: (habitId: string, date: string) => { status: CompletionStatus; opacity: number };
   onToggleCompletion: (habitId: string, date: string, status: CompletionStatus) => void;
   streak: { current: number; best: number; total: number };
-  opacity: number;
   onEdit: () => void;
   onDelete: () => void;
   onArchive: () => void;
@@ -27,10 +26,9 @@ export function HabitRow({
   habit,
   dates,
   visibleDays,
-  getCompletionStatus,
+  getCompletionDetails,
   onToggleCompletion,
   streak,
-  opacity,
   onEdit,
   onDelete,
   onArchive,
@@ -95,7 +93,7 @@ export function HabitRow({
         <div className="flex items-center gap-[var(--habit-cell-gap)] py-2 ml-2 flex-shrink-0">
           {dates.map((date) => {
             const dateStr = format(date, 'yyyy-MM-dd');
-            const status = getCompletionStatus(habit.id, dateStr);
+            const { status, opacity } = getCompletionDetails(habit.id, dateStr);
             
             return (
               <div key={dateStr}>

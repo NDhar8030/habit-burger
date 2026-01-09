@@ -148,7 +148,9 @@
   }
 
   .habit-cell-skipped {
-    clip-path: polygon(0 0, 100% 0, 100% 100%);
+    /* Downward-sloping triangle: fills the bottom-right half of the square */
+    /* Creates a diagonal line from top-left to bottom-right */
+    clip-path: polygon(100% 0, 100% 100%, 0 100%);
     @apply rounded-sm;
   }
 

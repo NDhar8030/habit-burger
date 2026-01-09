@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { CompletionStatus } from '@/types/habit';
 import { cn } from '@/lib/utils';
 import {
@@ -26,20 +25,23 @@ export function CompletionCell({
   isFuture,
   onToggle 
 }: CompletionCellProps) {
-  const [isHovered, setIsHovered] = useState(false);
-
+  // Click cycle: empty → filled → skip → empty
+  // - Tapping empty square fills it
+  // - Tapping filled square turns it into skip day
+  // - Tapping skip day clears it (makes it empty)
   const handleClick = () => {
     if (isFuture) return;
     
     if (status === 'incomplete') {
       onToggle('completed');
     } else if (status === 'completed') {
-      onToggle('incomplete');
+      onToggle('skipped');
     } else if (status === 'skipped') {
-      onToggle('completed');
+      onToggle('incomplete');
     }
   };
 
+  // For filled and skipped cells, apply the stored opacity
   const cellStyle = status === 'completed' || status === 'skipped'
     ? { backgroundColor: color, opacity }
     : {};
@@ -49,8 +51,6 @@ export function CompletionCell({
       <ContextMenuTrigger disabled={isFuture}>
         <button
           onClick={handleClick}
-          onMouseEnter={() => setIsHovered(true)}
-          onMouseLeave={() => setIsHovered(false)}
           disabled={isFuture}
           className={cn(
             'habit-cell relative transition-all duration-150',

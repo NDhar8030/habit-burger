@@ -1,2 +1,3 @@
-### Habit tracking web app with geometric gradients as consistency increases
-Testing out Lovable for one-shotting and making commits myself
+### Habit tracking web app
+Inspired by the consistency-dependent geometric gradient in everyday.app
+An exercise in the feasability of one-shotting with Lovable and tweaking myself
